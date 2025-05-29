@@ -1,0 +1,2 @@
+[console_scripts]
+amadeus = amadeus.cli:main

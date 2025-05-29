@@ -1,0 +1,9 @@
+{
+  "app_title": "Amadeus - Fine-Tuning Assistant for Generative AI Models",
+  "welcome_message": "Welcome to Amadeus!",
+  "goodbye_message": "Thank you for using Amadeus!",
+  "not_implemented": "This feature is not yet implemented",
+  "oracle_session": "🔮 Start Oracle session",
+  "model_configuration": "📝 Configuration of",
+  "interactive_mode": "🔨 Interactive mode for"
+}

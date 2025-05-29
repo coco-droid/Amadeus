@@ -1,0 +1,34 @@
+{
+  "main_menu_title": "Main Menu",
+  "fine_tuning_models": "➤ Fine-tuning Models",
+  "oracle_ai_agent": "🔮 Oracle (AI Agent)",
+  "provider_config": "⚙️ Provider Configuration",
+  "models_management": "📂 Models Management",
+  "language_settings": "🌐 Language Settings",
+  "quit": "🚪 Quit",
+  
+  "add_update_provider": "➕ Add or Update a provider",
+  "list_configured_providers": "🔄 List configured providers",
+  "delete_provider": "🗑️ Delete a provider",
+  "return": "↩️ Return",
+  "back": "⬅️ Back",
+  
+  "llm_text": "🔤 LLMs (text)",
+  "vllm_performance": "🚀 vLLM (high performance)",
+  "image_generation": "🖼️ Image generation",
+  "voice_synthesis": "🔊 Voice synthesis",
+  "audio_generation": "🎵 Audio generation",
+  
+  "recommendation_dataset": "🤖 Dataset/method recommendation",
+  "step_by_step_guide": "🛠️ Step-by-step guide",
+  "error_diagnostic": "📊 Error diagnostic",
+  
+  "list_all_models": "📜 List all models",
+  "model_details": "ℹ️ Model details",
+  "test_model": "🧪 Test model",
+  "delete_model": "🗑️ Delete model",
+
+  "language_menu_title": "Language Selection",
+  "english": "🇬🇧 English",
+  "french": "🇫🇷 Français"
+}
