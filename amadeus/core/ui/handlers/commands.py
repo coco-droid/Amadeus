@@ -137,9 +137,12 @@ class ProvidersCommand(BaseCommand):
         """Liste les providers disponibles ou configurés."""
         try:
             if args.configured:
-                # Lister les providers configurés
-                configured_ids = config_manager.get_all_providers()
-                if not configured_ids:
+                # Lister les providers configurés en utilisant la nouvelle interface
+                from amadeus.providers import get_all_providers
+                all_providers = get_all_providers()
+                configured_providers = {k: v for k, v in all_providers.items() if v.get('is_configured', False)}
+                
+                if not configured_providers:
                     self.info("No providers configured.")
                     return 0
                 
@@ -149,24 +152,23 @@ class ProvidersCommand(BaseCommand):
                 table.add_column("Type", style="yellow")
                 table.add_column("Status", style="magenta")
                 
-                for provider_id in configured_ids:
-                    try:
-                        config = registry.get_provider_config(provider_id)
-                        name = config.get('name', provider_id)
-                        provider_type = config.get('provider_type', 'unknown')
-                        status = "Available" if registry.is_provider_available(provider_id) else "Unavailable"
-                        table.add_row(provider_id, name, provider_type, status)
-                    except Exception as e:
-                        table.add_row(provider_id, "Unknown", "Unknown", f"Error: {str(e)}")
+                for provider_id, config in configured_providers.items():
+                    name = config.get('name', provider_id)
+                    # Utiliser provider_type de façon cohérente
+                    provider_type = config.get('provider_type', config.get('type', 'unknown'))
+                    is_available = config.get('is_available', False)
+                    status = "Available" if is_available else "Unavailable"
+                    table.add_row(provider_id, name, provider_type, status)
                 
                 console.print(table)
             else:
                 # Lister les providers disponibles
-                all_providers = registry.get_all_providers()
+                from amadeus.providers import get_all_providers
+                all_providers = get_all_providers()
                 
                 if args.type != 'all':
                     all_providers = {k: v for k, v in all_providers.items() 
-                                   if k.startswith(args.type)}
+                                   if v.get('provider_type', v.get('type')) == args.type}
                 
                 if not all_providers:
                     self.info(f"No {args.type} providers available.")
@@ -183,7 +185,8 @@ class ProvidersCommand(BaseCommand):
                     name = config.get('name', provider_id)
                     description = config.get('description', 'No description')
                     version = config.get('version', 'Unknown')
-                    configured = "Yes" if config_manager.check_provider_configured(provider_id) else "No"
+                    is_configured = config.get('is_configured', False)
+                    configured = "Yes" if is_configured else "No"
                     
                     table.add_row(provider_id, name, description, version, configured)
                 
@@ -193,6 +196,7 @@ class ProvidersCommand(BaseCommand):
             
         except Exception as e:
             self.error(f"Failed to list providers: {str(e)}")
+            logger.exception("Error listing providers")
             return 1
     
     def _configure_provider(self, args: argparse.Namespace) -> int:

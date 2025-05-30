@@ -63,7 +63,7 @@ class DBProviderConfigManager:
     def _get_machine_id(self) -> str:
         """
         Get a unique identifier for the current machine.
-        Falls back to username if no machine ID can be determined.
+        CROSS-PLATFORM: Works on Windows, macOS, and Linux without external dependencies.
         
         Returns:
             String identifier for the machine
@@ -72,7 +72,7 @@ class DBProviderConfigManager:
         # This will be more stable than just using the username
         machine_id = "unknown"
         
-        # Try reading machine-id from systemd
+        # Linux/Unix: Try reading machine-id from systemd (most modern Linux distributions)
         try:
             if os.path.exists("/etc/machine-id"):
                 with open("/etc/machine-id", "r") as f:
@@ -81,7 +81,7 @@ class DBProviderConfigManager:
         except Exception:
             pass
             
-        # Try reading from dbus machine ID on Linux/Unix systems
+        # Linux/Unix: Try reading from dbus machine ID (fallback for older systems)
         try:
             if os.path.exists("/var/lib/dbus/machine-id"):
                 with open("/var/lib/dbus/machine-id", "r") as f:
@@ -90,10 +90,10 @@ class DBProviderConfigManager:
         except Exception:
             pass
             
-        # On Windows, try using the registry
+        # Windows: Use the registry to get MachineGuid (no external tools needed)
         try:
             if os.name == "nt":
-                import winreg
+                import winreg  # Built into Python on Windows
                 with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
                                     r"SOFTWARE\Microsoft\Cryptography") as key:
                     machine_id, _ = winreg.QueryValueEx(key, "MachineGuid")
@@ -101,9 +101,9 @@ class DBProviderConfigManager:
         except Exception:
             pass
             
-        # Fall back to username plus hostname
+        # Universal fallback: username + hostname (works on all OS)
         try:
-            import socket
+            import socket  # Built into Python standard library
             username = os.environ.get("USER") or os.environ.get("USERNAME") or "default_user"
             hostname = socket.gethostname()
             return f"{username}_{hostname}"
@@ -202,9 +202,6 @@ class DBProviderConfigManager:
     def get_available_providers(self) -> List[str]:
         """
         Get a list of providers that are both configured and available.
-        
-        Returns:
-            List of available provider IDs
         """
         session = get_session()
         try:
@@ -219,60 +216,50 @@ class DBProviderConfigManager:
         finally:
             session.close()
     
-    def save_provider_config(self, provider_id: str, credentials: Dict[str, str]):
+    def get_all_providers_dict(self) -> Dict[str, Dict[str, Any]]:
         """
-        Save provider configuration to the database.
+        Get all providers with their configurations as a dictionary.
+        This method provides compatibility with the registry interface.
         
-        Args:
-            provider_id: Identifier of the provider
-            credentials: Dictionary of credential key-value pairs
+        Returns:
+            Dictionary mapping provider_id to config dict
         """
         session = get_session()
-        
         try:
-            # Find or create provider
-            provider = self._find_provider(session, provider_id)
-            if not provider:
-                # Create new provider record
-                provider = Provider(
-                    provider_id=provider_id,
-                    name=provider_id.capitalize(),  # Default name, can be updated later
-                    provider_type=self._guess_provider_type(provider_id),
-                    is_configured=True
-                )
-                session.add(provider)
-                session.flush()  # Generate ID for the new provider
-            
-            # Clear existing credentials
-            for cred in provider.credentials:
-                session.delete(cred)
-            
-            # Store new credentials
-            for key, value in credentials.items():
-                encrypted_value = self._encrypt_value(value)
-                cred = ProviderCredential(
-                    provider_id=provider.id,
-                    key=key,
-                    encrypted_value=encrypted_value
-                )
-                session.add(cred)
-            
-            # Update provider status
-            provider.is_configured = True
-            
-            session.commit()
-            
-            # Update cache
-            self._config_cache[provider_id] = credentials.copy()
-            
+            providers = session.query(Provider).all()
+            result = {}
+            for provider in providers:
+                result[provider.provider_id] = {
+                    "name": provider.name,
+                    "provider_type": provider.provider_type,
+                    "is_configured": provider.is_configured,
+                    "is_available": provider.is_available
+                }
+            return result
         except Exception as e:
-            session.rollback()
-            logger.error(f"Error saving provider config for {provider_id}: {e}")
-            raise
+            logger.error(f"Error retrieving all providers dict: {e}")
+            return {}
         finally:
             session.close()
     
-    def _find_provider(self, session: Session, provider_id: str) -> Optional[Provider]:
+    def has_any_providers(self) -> bool:
+        """
+        Check if any providers are configured.
+        
+        Returns:
+            True if at least one provider is configured
+        """
+        session = get_session()
+        try:
+            count = session.query(Provider).filter(Provider.is_configured == True).count()
+            return count > 0
+        except Exception as e:
+            logger.error(f"Error checking for configured providers: {e}")
+            return False
+        finally:
+            session.close()
+    
+    def _find_provider(self, session: Session, provider_id: str) -> Optional[Any]:
         """
         Find a provider in the database by ID.
         
@@ -281,69 +268,90 @@ class DBProviderConfigManager:
             provider_id: Provider identifier
             
         Returns:
-            Provider object or None if not found
+            Provider instance or None
         """
-        return session.query(Provider).filter(Provider.provider_id == provider_id).first()
+        try:
+            return session.query(Provider).filter_by(provider_id=provider_id).first()
+        except Exception as e:
+            logger.error(f"Error finding provider {provider_id}: {e}")
+            return None
     
-    def _guess_provider_type(self, provider_id: str) -> str:
+    def save_provider_config(self, provider_id: str, credentials: Dict[str, str]):
         """
-        Make an educated guess about the provider type based on its ID.
+        Save provider configuration to the database.
+        
+        Args:
+            provider_id: Provider identifier
+            credentials: Dictionary of credentials to save
+        """
+        session = get_session()
+        try:
+            # Find or create provider
+            provider = self._find_provider(session, provider_id)
+            if not provider:
+                logger.error(f"Provider {provider_id} not found in database. Cannot save credentials.")
+                raise ValueError(f"Provider {provider_id} must exist before saving credentials")
+            
+            # Remove existing credentials
+            session.query(ProviderCredential).filter_by(provider_id=provider.id).delete()
+            
+            # Add new credentials
+            for key, value in credentials.items():
+                if value:  # Only save non-empty values
+                    encrypted_value = self._encrypt_value(str(value))
+                    credential = ProviderCredential(
+                        provider_id=provider.id,
+                        key=key,
+                        encrypted_value=encrypted_value
+                    )
+                    session.add(credential)
+            
+            # Mark provider as configured
+            provider.is_configured = True
+            session.commit()
+            
+            # Clear cache
+            if provider_id in self._config_cache:
+                del self._config_cache[provider_id]
+            
+            logger.info(f"Saved configuration for provider {provider_id}")
+            
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error saving provider config for {provider_id}: {e}")
+            raise
+        finally:
+            session.close()
+    
+    def delete_provider_config(self, provider_id: str) -> bool:
+        """
+        Delete provider configuration from the database.
         
         Args:
             provider_id: Provider identifier
             
         Returns:
-            Provider type ("cloud" or "local")
-        """
-        # List of known cloud providers
-        cloud_providers = [
-            "openai", "anthropic", "google", "cohere", "azure", "mistral", 
-            "huggingface", "ai_studio", "claude", "gemini"
-        ]
-        
-        # List of known local providers
-        local_providers = ["ollama", "llama.cpp", "unsloth", "mlx", "pytorch"]
-        
-        # Check if provider_id contains or matches any known provider names
-        for cloud in cloud_providers:
-            if cloud in provider_id.lower():
-                return "cloud"
-                
-        for local in local_providers:
-            if local in provider_id.lower():
-                return "local"
-        
-        # Default to cloud if unknown
-        return "cloud"
-    
-    def delete_provider_config(self, provider_id: str) -> bool:
-        """
-        Delete a provider configuration from the database.
-        
-        Args:
-            provider_id: Identifier of the provider
-            
-        Returns:
-            True if the provider was found and deleted, False otherwise
+            True if deletion was successful
         """
         session = get_session()
         try:
             provider = self._find_provider(session, provider_id)
             if not provider:
+                logger.warning(f"Provider {provider_id} not found for deletion")
                 return False
             
-            # Delete all related credentials
-            for cred in provider.credentials:
-                session.delete(cred)
+            # Delete all credentials
+            deleted_count = session.query(ProviderCredential).filter_by(provider_id=provider.id).delete()
             
-            # Update provider status rather than deleting the record
+            # Mark provider as not configured
             provider.is_configured = False
             session.commit()
             
-            # Remove from cache
+            # Clear cache
             if provider_id in self._config_cache:
                 del self._config_cache[provider_id]
-                
+            
+            logger.info(f"Deleted {deleted_count} credentials for provider {provider_id}")
             return True
             
         except Exception as e:
@@ -355,69 +363,58 @@ class DBProviderConfigManager:
     
     def check_provider_configured(self, provider_id: str) -> bool:
         """
-        Check if a provider is configured in the database.
+        Check if a provider is configured.
         
         Args:
-            provider_id: Identifier of the provider
+            provider_id: Provider identifier
             
         Returns:
-            True if the provider is configured, False otherwise
+            True if provider is configured
+        """
+        session = get_session()
+        try:
+            provider = self._find_provider(session, provider_id)
+            return provider and provider.is_configured
+        except Exception as e:
+            logger.error(f"Error checking if provider {provider_id} is configured: {e}")
+            return False
+        finally:
+            session.close()
+    
+    def ensure_provider_exists(self, provider_id: str, name: str, provider_type: str):
+        """
+        Ensure a provider exists in the database.
+        
+        Args:
+            provider_id: Provider identifier
+            name: Provider name
+            provider_type: Provider type (cloud/local)
         """
         session = get_session()
         try:
             provider = self._find_provider(session, provider_id)
             if not provider:
-                return False
-                
-            return provider.is_configured and len(provider.credentials) > 0
-            
-        except Exception as e:
-            logger.error(f"Error checking provider configuration for {provider_id}: {e}")
-            return False
-        finally:
-            session.close()
-    
-    def update_provider_availability(self, provider_id: str, is_available: bool):
-        """
-        Update the availability status of a provider.
-        
-        Args:
-            provider_id: Identifier of the provider
-            is_available: Whether the provider is available
-        """
-        session = get_session()
-        try:
-            provider = self._find_provider(session, provider_id)
-            if provider:
-                provider.is_available = is_available
-                provider.last_check_time = session.now()
+                provider = Provider(
+                    provider_id=provider_id,
+                    name=name,
+                    provider_type=provider_type,
+                    is_available=True,
+                    is_configured=False
+                )
+                session.add(provider)
                 session.commit()
-        except Exception as e:
-            session.rollback()
-            logger.error(f"Error updating provider availability for {provider_id}: {e}")
-        finally:
-            session.close()
-    
-    def update_provider_metadata(self, provider_id: str, name: str = None, provider_type: str = None):
-        """
-        Update metadata for a provider.
-        
-        Args:
-            provider_id: Identifier of the provider
-            name: Display name for the provider
-            provider_type: Type of provider ("cloud" or "local")
-        """
-        session = get_session()
-        try:
-            provider = self._find_provider(session, provider_id)
-            if provider:
-                if name:
+                logger.info(f"Created new provider entry: {provider_id}")
+            else:
+                # Update name and type if they've changed
+                if provider.name != name or provider.provider_type != provider_type:
                     provider.name = name
-                if provider_type:
                     provider.provider_type = provider_type
-                session.commit()
+                    session.commit()
+                    logger.debug(f"Updated provider info: {provider_id}")
+                    
         except Exception as e:
             session.rollback()
-            logger.error(f"Error updating provider metadata for {provider_id}: {e}")
+            logger.error(f"Error ensuring provider exists {provider_id}: {e}")
+            raise
         finally:
             session.close()

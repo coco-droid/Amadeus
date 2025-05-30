@@ -42,6 +42,10 @@ class AmadeusApp:
                 self.is_main_menu = True
                 self.show_main_menu()
     
+        # S'assurer que nous utilisons le gestionnaire de base de données
+        from amadeus.providers import config_manager
+        self.config_manager = config_manager
+        
     def _configure_silent_logging(self):
         """Configure les logs pour qu'ils soient silencieux pendant l'UI."""
         # Désactiver tous les logs console pendant l'UI
@@ -203,7 +207,6 @@ class AmadeusApp:
             ])
         
         # Conteneur principal avec centrage mais dimensions flexibles
-        # Utiliser un padding minimum pour éviter les problèmes d'affichage
         main_container = Box(
             root_container,
             padding=Dimension(preferred=0, max=1),

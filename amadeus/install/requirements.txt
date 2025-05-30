@@ -1,20 +1,25 @@
+# UI and CLI dependencies - Pure Python, cross-platform
+prompt-toolkit>=3.0.0      # Terminal UI - works on all OS
+pygments>=2.0.0            # Syntax highlighting - pure Python
+rich>=13.0.0               # Rich text formatting - pure Python
+typer>=0.9.0               # CLI framework - pure Python
+pyyaml>=6.0                # YAML parsing - C extension with wheels
 
-# UI and CLI dependencies
-prompt-toolkit>=3.0.0
-pygments>=2.0.0
-rich>=13.0.0
-typer>=0.9.0
-pyyaml>=6.0
+# HTTP and API dependencies - Pure Python
+requests>=2.0.0            # HTTP library - pure Python with optional C extensions
 
-# HTTP and API dependencies
-requests>=2.0.0
+# Database dependencies - No external database server required
+sqlalchemy>=2.0.0          # ORM - pure Python with optional C extensions
+alembic>=1.12.0            # Database migrations - pure Python
 
-# Database dependencies
-sqlalchemy>=2.0.0
-alembic>=1.12.0
+# Security dependencies - Cross-platform cryptography
+cryptography>=41.0.0       # Modern cryptography - has wheels for all platforms
 
-# Security dependencies
-cryptography>=41.0.0
+# Utilities - Pure Python
+python-dotenv>=1.0.0       # Environment variables - pure Python
 
-# Utilities
-python-dotenv>=1.0.0
+# NOTE: All packages have pre-compiled wheels available for:
+# - Windows (x86, x64)
+# - macOS (Intel, Apple Silicon)  
+# - Linux (x86_64, ARM64)
+# No compilation or external dependencies required during installation

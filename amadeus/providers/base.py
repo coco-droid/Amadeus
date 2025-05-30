@@ -3,11 +3,14 @@ from typing import Dict, List, Optional, Any
 import json
 import os
 import logging
+import importlib.util
 
 class Provider(ABC):
     """
     Classe abstraite de base pour tous les providers.
-    Chaque provider doit implémenter cette interface.
+    
+    Cette classe fournit une interface standardisée que tous les providers
+    doivent implémenter. Elle facilite l'ajout de nouveaux providers.
     """
     
     def __init__(self, provider_id: str, config_path: Optional[str] = None):
@@ -15,7 +18,7 @@ class Provider(ABC):
         Initialise un provider avec son identifiant et son chemin de configuration.
         
         Args:
-            provider_id: Identifiant unique du provider
+            provider_id: Identifiant unique du provider (ex: "cloud.openai")
             config_path: Chemin vers le fichier de configuration (config.json)
         """
         self.provider_id = provider_id
@@ -71,35 +74,45 @@ class Provider(ABC):
             self.logger.debug("Détails:", exc_info=True)
         
     def _get_default_config_path(self) -> str:
-        """Obtient le chemin par défaut du fichier de configuration."""
+        """
+        Obtient le chemin par défaut du fichier de configuration.
+        Utilise la structure standard des providers.
+        """
+        # Décomposer l'ID du provider (ex: "cloud.openai" -> ["cloud", "openai"])
+        parts = self.provider_id.split('.')
+        if len(parts) != 2:
+            raise ValueError(f"Format d'ID de provider invalide: {self.provider_id}. Attendu: 'type.nom'")
+        
+        provider_type, provider_name = parts
+        
+        # Construire le chemin vers config.json
         module_dir = os.path.dirname(os.path.abspath(__file__))
-        
-        # Déterminer le type (local/cloud) à partir de la structure du package
-        if "local" in self.__module__:
-            provider_type = "local"
-        else:
-            provider_type = "cloud"
-            
-        # Extraire le nom du provider à partir du nom du module
-        provider_name = self.__module__.split('.')[-2]
-        
         return os.path.join(module_dir, provider_type, provider_name, "config.json")
     
     def _load_config(self) -> Dict[str, Any]:
-        """Charge la configuration du provider depuis le fichier config.json."""
+        """
+        Charge la configuration du provider depuis le fichier config.json.
+        
+        Returns:
+            Configuration du provider
+            
+        Raises:
+            FileNotFoundError: Si le fichier de configuration n'existe pas
+            ValueError: Si le format JSON est invalide
+        """
         try:
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
                 self.logger.debug(f"Configuration chargée pour {self.provider_id}")
                 return config
         except FileNotFoundError:
-            error_msg = f"Configuration non trouvée pour le provider {self.provider_id}"
+            error_msg = f"Configuration non trouvée pour le provider {self.provider_id} à {self.config_path}"
             self.logger.error(error_msg)
             self.is_available = False
             self._update_availability_in_db(False)
             raise FileNotFoundError(error_msg)
-        except json.JSONDecodeError:
-            error_msg = f"Format de configuration invalide pour le provider {self.provider_id}"
+        except json.JSONDecodeError as e:
+            error_msg = f"Format de configuration invalide pour le provider {self.provider_id}: {e}"
             self.logger.error(error_msg)
             self.is_available = False
             self._update_availability_in_db(False)
@@ -113,38 +126,50 @@ class Provider(ABC):
             
             session = get_session()
             try:
-                db_provider = session.query(DBProvider).filter(DBProvider.provider_id == self.provider_id).first()
-                
+                db_provider = session.query(DBProvider).filter_by(provider_id=self.provider_id).first()
                 if db_provider:
                     db_provider.is_available = is_available
                     session.commit()
-                    self.logger.debug(f"Disponibilité mise à jour dans la DB: {is_available}")
                     
             finally:
                 session.close()
                 
         except Exception as e:
-            self.logger.error(f"Erreur lors de la mise à jour de disponibilité dans la DB: {e}")
+            self.logger.error(f"Erreur lors de la mise à jour de la disponibilité: {e}")
     
     @property
     def name(self) -> str:
-        """Retourne le nom du provider."""
-        return self.config.get("name", self.provider_id)
+        """Nom du provider."""
+        return self.config.get('name', self.provider_id)
     
     @property
     def description(self) -> str:
-        """Retourne la description du provider."""
-        return self.config.get("description", "")
+        """Description du provider."""
+        return self.config.get('description', '')
     
     @property
     def provider_type(self) -> str:
-        """Retourne le type de provider (cloud ou local)."""
-        return self.config.get("provider_type", "unknown")
+        """Type du provider (cloud ou local)."""
+        return self.config.get('provider_type', 'unknown')
     
     @property
-    def auth_requirements(self) -> List[Dict[str, Any]]:
-        """Retourne la liste des exigences d'authentification."""
-        return self.config.get("auth_requirements", [])
+    def type(self) -> str:
+        """
+        Retourne le type de provider (cloud ou local).
+        Rétrocompatible avec l'ancienne API.
+        """
+        # Utiliser provider_type de façon cohérente
+        return self.provider_type
+    
+    @property
+    def version(self) -> str:
+        """Version du provider."""
+        return self.config.get('version', '1.0.0')
+    
+    @property
+    def auth_requirements(self) -> list:
+        """Exigences d'authentification du provider."""
+        return self.config.get('auth_requirements', [])
     
     @property
     def supported_features(self) -> Dict[str, Any]:
@@ -292,16 +317,71 @@ class Provider(ABC):
             self.logger.debug("Détails:", exc_info=True)
             raise ProviderError(f"Erreur avec {self.name}: {str(e)}")
     
-    @property
-    def type(self) -> str:
+    @classmethod
+    def get_provider_info(cls) -> Dict[str, Any]:
         """
-        Retourne le type de provider (cloud ou local).
-        Rétrocompatible avec l'ancienne API.
+        Retourne les informations de base du provider.
+        Cette méthode peut être surchargée pour fournir des infos dynamiques.
+        
+        Returns:
+            Dictionnaire avec les informations du provider
         """
-        # Déterminer à partir de l'ID du provider (ex: cloud.openai -> cloud)
-        parts = self.provider_id.split('.')
-        if len(parts) > 0 and parts[0] in ["cloud", "local"]:
-            return parts[0]
+        return {
+            "class_name": cls.__name__,
+            "module": cls.__module__,
+            "description": cls.__doc__ or "No description available"
+        }
+    
+    @classmethod
+    def validate_config_format(cls, config: Dict[str, Any]) -> List[str]:
+        """
+        Valide le format de la configuration d'un provider.
+        
+        Args:
+            config: Configuration à valider
             
-        # Sinon utiliser la valeur dans la configuration
-        return self.config.get("provider_type", "unknown")
+        Returns:
+            Liste des erreurs de validation (vide si valide)
+        """
+        errors = []
+        
+        required_fields = ["name", "version", "description", "provider_type", "auth_requirements"]
+        for field in required_fields:
+            if field not in config:
+                errors.append(f"Champ requis manquant: {field}")
+        
+        # Validation du type
+        if "provider_type" in config and config["provider_type"] not in ["cloud", "local"]:
+            errors.append(f"provider_type doit être 'cloud' ou 'local', reçu: {config['provider_type']}")
+        
+        # Validation des auth_requirements
+        if "auth_requirements" in config:
+            if not isinstance(config["auth_requirements"], list):
+                errors.append("auth_requirements doit être une liste")
+            else:
+                for i, req in enumerate(config["auth_requirements"]):
+                    if not isinstance(req, dict):
+                        errors.append(f"auth_requirements[{i}] doit être un dictionnaire")
+                        continue
+                    if "key" not in req:
+                        errors.append(f"auth_requirements[{i}] doit avoir un champ 'key'")
+                    if "name" not in req:
+                        errors.append(f"auth_requirements[{i}] doit avoir un champ 'name'")
+        
+        return errors
+    
+    def get_quick_status(self) -> Dict[str, Any]:
+        """
+        Retourne un statut rapide du provider sans vérification complète.
+        
+        Returns:
+            Dictionnaire avec le statut du provider
+        """
+        return {
+            "provider_id": self.provider_id,
+            "name": self.name,
+            "type": self.provider_type,
+            "is_available": self.is_available,
+            "config_loaded": bool(self.config),
+            "version": self.config.get("version", "unknown")
+        }

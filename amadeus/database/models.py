@@ -56,26 +56,43 @@ class ProviderCredential(Base):
     
     def __repr__(self):
         return f"<ProviderCredential(provider='{self.provider.provider_id}', key='{self.key}')>"
+    
+    def is_expired(self, days=90):
+        """Check if credential is older than specified days"""
+        import datetime
+        if not self.updated_at:
+            return True
+        
+        age = datetime.datetime.utcnow() - self.updated_at
+        return age.days > days
+    
+    def update_timestamp(self):
+        """Update the timestamp when credential is modified"""
+        import datetime
+        self.updated_at = datetime.datetime.utcnow()
 
 class Model(Base):
     """Model representing a language model (fine-tuned or base)"""
     __tablename__ = 'models'
     
     id = Column(Integer, primary_key=True)
-    model_id = Column(String(100), nullable=False)
-    provider_id = Column(Integer, ForeignKey('providers.id'), nullable=False)
-    display_name = Column(String(100))
-    is_fine_tuned = Column(Boolean, default=False)
-    base_model = Column(String(100))
+    name = Column(String(255), nullable=False)
+    provider_id = Column(Integer, ForeignKey('providers.id'), nullable=False)  # Added ForeignKey
+    model_type = Column(String(50), nullable=False)
+    model_metadata = Column(JSON, default={})  # Changed from 'metadata' to 'model_metadata'
+    capabilities = Column(JSON, default={})
+    pricing = Column(JSON, default={})
+    limits = Column(JSON, default={})
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    metadata = Column(JSON)  # Additional model metadata (parameters, size, etc)
-    
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
     # Relationships
     provider = relationship("Provider", back_populates="models")
     fine_tuning_job = relationship("FineTuningJob", back_populates="model", uselist=False)
     
     def __repr__(self):
-        return f"<Model(model_id='{self.model_id}', provider='{self.provider.provider_id}')>"
+        return f"<Model(name='{self.name}', provider_id='{self.provider_id}')>"  # Fixed reference
 
 class Dataset(Base):
     """Model representing a training dataset"""
@@ -88,7 +105,7 @@ class Dataset(Base):
     format = Column(String(50))  # e.g. "json", "csv", "jsonl"
     num_examples = Column(Integer)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    metadata = Column(JSON)  # Additional dataset metadata
+    dataset_metadata = Column(JSON, default={})  # Changed from 'metadata' to 'dataset_metadata'
     
     # Relationships
     fine_tuning_jobs = relationship("FineTuningJob", back_populates="dataset")

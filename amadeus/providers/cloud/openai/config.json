@@ -1,38 +1,52 @@
 {
+  "id": "cloud.openai",
   "name": "OpenAI",
-  "description": "API OpenAI pour accéder aux modèles comme GPT-4",
+  "version": "1.0.0",
+  "description": "Provider pour l'API OpenAI (GPT-3.5, GPT-4, etc.)",
   "provider_type": "cloud",
+  "module": "openai",
   "auth_requirements": [
     {
       "key": "api_key",
       "name": "API Key",
-      "description": "Clé API OpenAI",
+      "description": "Votre clé API OpenAI (commence par sk-)",
       "required": true,
-      "secret": true
+      "secret": true,
+      "type": "string"
     },
     {
       "key": "organization_id",
       "name": "Organization ID",
-      "description": "ID de l'organisation OpenAI (optionnel)",
+      "description": "ID de votre organisation OpenAI (optionnel)",
       "required": false,
-      "secret": false
+      "secret": false,
+      "type": "string"
     }
   ],
   "supported_features": {
-    "fine_tuning": ["standard", "lora"],
+    "text_generation": true,
     "embeddings": true,
-    "chat_completion": true
+    "fine_tuning": true,
+    "image_generation": true
   },
   "default_models": [
     {
       "id": "gpt-3.5-turbo",
       "name": "GPT-3.5 Turbo",
-      "fine_tunable": true
+      "type": "chat",
+      "description": "Modèle conversationnel rapide et efficace"
     },
     {
       "id": "gpt-4",
       "name": "GPT-4",
-      "fine_tunable": false
+      "type": "chat",
+      "description": "Modèle le plus avancé d'OpenAI"
+    },
+    {
+      "id": "text-embedding-ada-002",
+      "name": "Text Embedding Ada 002",
+      "type": "embedding",
+      "description": "Modèle d'embedding de texte"
     }
   ]
 }

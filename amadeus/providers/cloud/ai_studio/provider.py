@@ -1,17 +1,22 @@
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 import requests
-import json
+import logging
 
 from amadeus.providers.base import Provider
 from amadeus.providers.exceptions import (
     ProviderConnectionError, ProviderAuthenticationError
 )
 
+logger = logging.getLogger("amadeus.providers.cloud.ai_studio")
+
 class AIStudioProvider(Provider):
-    """
-    Provider pour l'API Google AI Studio (Gemini).
-    """
+    """Provider pour l'API Google AI Studio."""
     
+    def __init__(self, provider_id: str = "cloud.ai_studio"):
+        """Initialize the AI Studio provider."""
+        super().__init__(provider_id)
+        logger.debug(f"Initialized AIStudioProvider with ID: {provider_id}")
+        
     def validate_credentials(self, credentials: Dict[str, str]) -> bool:
         """
         Valide les informations d'identification Google AI Studio.
@@ -118,26 +123,30 @@ class AIStudioProvider(Provider):
     
     def list_fine_tunable_models(self, credentials: Dict[str, str]) -> List[Dict[str, Any]]:
         """
-        Liste les modèles qui peuvent être fine-tunés sur Google AI Studio.
+        Liste les modèles fine-tunables sur Google AI Studio.
         
         Args:
             credentials: Dictionnaire contenant la clé API
             
         Returns:
-            Liste des modèles fine-tunables avec leurs métadonnées
+            Liste des modèles fine-tunables
         """
         try:
-            # Google AI Studio n'expose pas encore d'API pour lister les modèles fine-tunables,
-            # nous retournons donc une liste prédéfinie
-            return [
-                {
-                    "id": "text-bison@002",
-                    "name": "Text Bison",
-                    "description": "Modèle de génération de texte à usage général"
-                }
-            ]
+            # For now, return a subset of available models that support fine-tuning
+            available_models = self.list_available_models(credentials)
+            fine_tunable = []
+            
+            for model in available_models:
+                # Check if model supports fine-tuning (basic heuristic)
+                if "gemini" in model["id"].lower():
+                    model_copy = model.copy()
+                    model_copy["fine_tunable"] = True
+                    fine_tunable.append(model_copy)
+            
+            return fine_tunable
+            
         except Exception as e:
             if isinstance(e, (ProviderAuthenticationError, ProviderConnectionError)):
                 raise
             else:
-                raise ProviderConnectionError(f"Erreur lors de la récupération des modèles fine-tunables Google AI Studio: {str(e)}")
+                raise ProviderConnectionError(f"Erreur lors de la récupération des modèles fine-tunables AI Studio: {str(e)}")

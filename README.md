@@ -20,6 +20,25 @@ Amadeus est votre compositeur d'IA personnel, conçu pour orchestrer et fine-tun
 pip install amadeus-ai
 ```
 
+## 🌍 Compatibilité Cross-Platform
+
+Amadeus est conçu pour fonctionner sur **tous les systèmes d'exploitation** sans installation manuelle de dépendances externes :
+
+### ✅ Systèmes Supportés
+- **Windows** (7, 8, 10, 11)
+- **macOS** (10.14+)
+- **Linux** (toutes distributions principales)
+
+### 🗄️ Base de Données Intégrée
+- **SQLite** - Aucune installation de serveur de base de données requise
+- Stockage local sécurisé dans `~/.amadeus/amadeus.db`
+- Chiffrement des credentials avec cryptographie moderne
+
+### 🔐 Sécurité Multi-OS
+- Détection automatique de l'identifiant machine (Windows Registry, /etc/machine-id sur Linux)
+- Clés de chiffrement basées sur l'utilisateur et la machine
+- Fallback sécurisé sur username + hostname
+
 ## 💻 Utilisation
 
 ### Interface Utilisateur Interactive
@@ -45,7 +64,7 @@ amadeus models list --provider cloud.openai
 
 Les configurations sont stockées de manière sécurisée dans:
 - `~/.amadeus/` - Dossier principal de configuration
-- `~/.amadeus/amadeus.db` - Base de données SQLite pour les configurations
+- `~/.amadeus/amadeus.db` - **Base de données SQLite** pour les configurations
 - `~/.amadeus/logs/` - Fichiers de logs rotatifs
 - `~/.amadeus/language` - Préférence de langue
 

@@ -15,13 +15,36 @@ class MemoryHandler(logging.Handler):
     def __init__(self):
         super().__init__()
         self.logs = []
+        self.max_logs = 1000  # Limiter la mémoire
         
     def emit(self, record):
-        self.logs.append(self.format(record))
+        # Capturer TOUS les niveaux, y compris DEBUG
+        formatted_record = self.format(record)
+        self.logs.append({
+            'message': formatted_record,
+            'level': record.levelname,
+            'timestamp': record.created,
+            'logger': record.name
+        })
         
-    def get_logs(self):
-        return self.logs
+        # Limiter la taille pour éviter la surcharge mémoire
+        if len(self.logs) > self.max_logs:
+            self.logs = self.logs[-self.max_logs:]
         
+    def get_logs(self, level_filter=None):
+        """Récupère les logs avec filtrage optionnel."""
+        if level_filter:
+            return [log for log in self.logs if log['level'] == level_filter]
+        return [log['message'] for log in self.logs]
+        
+    def get_error_logs(self):
+        """Récupère seulement les erreurs."""
+        return [log['message'] for log in self.logs if log['level'] in ['ERROR', 'CRITICAL']]
+        
+    def get_warning_logs(self):
+        """Récupère seulement les warnings."""
+        return [log['message'] for log in self.logs if log['level'] == 'WARNING']
+    
     def clear_logs(self):
         self.logs.clear()
 
@@ -29,9 +52,9 @@ class MemoryHandler(logging.Handler):
 memory_handler = MemoryHandler()
 memory_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 
-# Configuration du logging principal - utiliser seulement le handler mémoire
+# Configuration du logging principal - CAPTURER TOUS LES NIVEAUX
 root_logger = logging.getLogger()
-root_logger.setLevel(logging.INFO)
+root_logger.setLevel(logging.DEBUG)  # CHANGÉ: capturer DEBUG aussi
 
 # Supprimer tous les handlers existants
 for handler in root_logger.handlers[:]:
@@ -43,9 +66,20 @@ root_logger.addHandler(memory_handler)
 # Application version
 __version__ = "0.2.0"  # Updated version with DB support
 
-def get_stored_logs():
-    """Récupère tous les logs stockés en mémoire."""
-    return memory_handler.get_logs()
+def get_stored_logs(level_filter=None):
+    """Récupère tous les logs stockés en mémoire avec filtrage optionnel."""
+    return memory_handler.get_logs(level_filter)
+
+def get_error_summary():
+    """Récupère un résumé des erreurs en mémoire."""
+    errors = memory_handler.get_error_logs()
+    warnings = memory_handler.get_warning_logs()
+    return {
+        'errors': errors,
+        'warnings': warnings,
+        'total_errors': len(errors),
+        'total_warnings': len(warnings)
+    }
 
 def clear_stored_logs():
     """Efface tous les logs stockés en mémoire."""

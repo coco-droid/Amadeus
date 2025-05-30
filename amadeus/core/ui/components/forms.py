@@ -4,7 +4,7 @@ from prompt_toolkit.layout.containers import HSplit, VSplit, Window, FloatContai
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.layout.dimension import Dimension
-from prompt_toolkit.widgets import Button, Box, Frame, Label, TextArea, Dialog
+from prompt_toolkit.widgets import Button, Box, Frame, Label, TextArea, Dialog, Shadow
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.filters import Condition
@@ -28,9 +28,12 @@ class Field:
         
     def create_control(self, width=40):
         """Crée un contrôle pour ce champ."""
-        # Créer un label pour le champ
+        # Créer un label pour le champ avec indicateur de modification si nécessaire
+        required_indicator = ' *' if self.required else ''
+        modified_indicator = ' (modifié)' if self.default and self.secret else ''
+        
         field_label = Label(HTML(
-            f"<info>{self.label}</info>{' *' if self.required else ''}: "
+            f"<info>{self.label}</info>{required_indicator}{modified_indicator}: "
         ))
         
         # Créer un TextArea pour ce champ
@@ -207,11 +210,21 @@ class NotificationDialog:
         )
         
         # Centrer le dialogue avec ombre
-        centered_dialog = Box(
-            Shadow(dialog_frame),
-            padding=2,
-            width=Dimension(preferred=max(len(self.text) + 15, 40), max=80),
-            style="class:dialog.notification"
-        )
+        try:
+            # Essayer d'utiliser Shadow si disponible
+            centered_dialog = Box(
+                Shadow(dialog_frame),
+                padding=2,
+                width=Dimension(preferred=max(len(self.text) + 15, 40), max=80),
+                style="class:dialog.notification"
+            )
+        except (ImportError, NameError):
+            # Fallback sans ombre si Shadow n'est pas disponible
+            centered_dialog = Box(
+                dialog_frame,
+                padding=2,
+                width=Dimension(preferred=max(len(self.text) + 15, 40), max=80),
+                style="class:dialog.notification"
+            )
         
         return centered_dialog, self.kb

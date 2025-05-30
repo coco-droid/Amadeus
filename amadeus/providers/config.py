@@ -108,13 +108,31 @@ class ProviderConfigManager:
         config = self._load_encrypted_config()
         return list(config.keys())
     
+    def get_all_providers_dict(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get all providers with their configurations as a dictionary.
+        This method provides compatibility with the registry interface.
+        
+        Returns:
+            Dictionary mapping provider_id to config dict
+        """
+        config = self._load_encrypted_config()
+        result = {}
+        for provider_id, credentials in config.items():
+            result[provider_id] = {
+                "credentials": credentials,
+                "is_configured": True,
+                "is_available": True  # Assume available if configured in file-based system
+            }
+        return result
+    
     def save_provider_config(self, provider_id: str, credentials: Dict[str, str]):
         """
         Sauvegarde la configuration d'un provider.
         
         Args:
             provider_id: Identifiant du provider
-            credentials: Informations d'authentification à sauvegarder
+            credentials: Dictionnaire des informations d'identification
         """
         config = self._load_encrypted_config()
         config[provider_id] = credentials
@@ -125,10 +143,10 @@ class ProviderConfigManager:
         Supprime la configuration d'un provider.
         
         Args:
-            provider_id: Identifiant du provider à supprimer
+            provider_id: Identifiant du provider
             
         Returns:
-            True si la configuration a été supprimée, False sinon
+            True si la suppression a réussi
         """
         config = self._load_encrypted_config()
         if provider_id in config:
@@ -145,7 +163,38 @@ class ProviderConfigManager:
             provider_id: Identifiant du provider
             
         Returns:
-            True si le provider est configuré, False sinon
+            True si le provider est configuré
         """
         config = self._load_encrypted_config()
         return provider_id in config and bool(config[provider_id])
+    
+    def ensure_provider_exists(self, provider_id: str, name: str, provider_type: str):
+        """
+        S'assure qu'un provider existe (pour compatibilité avec DBProviderConfigManager).
+        Dans le cas du fichier, cette méthode ne fait rien car les providers
+        sont créés à la volée lors de la sauvegarde.
+        
+        Args:
+            provider_id: Identifiant du provider
+            name: Nom du provider
+            provider_type: Type du provider
+        """
+        # Pour le système de fichiers, pas besoin de pré-créer les providers
+        pass
+    
+    def has_any_providers(self) -> bool:
+        """
+        Vérifie s'il y a des providers configurés.
+        
+        Returns:
+            True s'il y a au moins un provider configuré
+        """
+        config = self._load_encrypted_config()
+        return len(config) > 0
+    
+    def get_available_providers(self) -> List[str]:
+        """
+        Get a list of providers that are both configured and available.
+        For file-based system, same as get_all_providers.
+        """
+        return self.get_all_providers()

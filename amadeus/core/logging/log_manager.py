@@ -38,20 +38,20 @@ class LogManager:
         
         # Logger principal
         logger = logging.getLogger('amadeus')
-        logger.setLevel(logging.DEBUG)
+        logger.setLevel(logging.DEBUG)  # Capturer TOUS les niveaux
         
         # Supprimer les handlers existants pour éviter les doublons
         for handler in logger.handlers[:]:
             logger.removeHandler(handler)
         
-        # Handler pour fichier (rotating)
+        # Handler pour fichier (rotating) - CAPTURER TOUS LES NIVEAUX
         file_handler = logging.handlers.RotatingFileHandler(
             self.log_file,
             maxBytes=10 * 1024 * 1024,  # 10MB
             backupCount=5,
             encoding='utf-8'
         )
-        file_handler.setLevel(logging.DEBUG)
+        file_handler.setLevel(logging.DEBUG)  # CHANGÉ: capturer DEBUG aussi
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
         
@@ -63,6 +63,17 @@ class LogManager:
             '%H:%M:%S'
         ))
         logger.addHandler(console_handler)
+        
+        # NOUVEAU: Handler spécial pour les erreurs et warnings
+        error_handler = logging.handlers.RotatingFileHandler(
+            self.log_dir / f"amadeus_errors_{datetime.now().strftime('%Y%m%d')}.log",
+            maxBytes=5 * 1024 * 1024,  # 5MB
+            backupCount=3,
+            encoding='utf-8'
+        )
+        error_handler.setLevel(logging.WARNING)  # Capturer WARNING et plus
+        error_handler.setFormatter(formatter)
+        logger.addHandler(error_handler)
         
         # Empêcher la propagation vers le logger root
         logger.propagate = False
@@ -247,6 +258,34 @@ class LogViewer:
                 print(f"  {level:<10}: {count}")
         
         print(f"{'='*50}")
+    
+    def get_error_summary(self, days: int = 7) -> Dict[str, Any]:
+        """Retourne un résumé des erreurs récentes."""
+        errors = self.filter_logs(level_filter="ERROR", limit=1000)
+        warnings = self.filter_logs(level_filter="WARNING", limit=1000)
+        
+        # Grouper par type d'erreur
+        error_types = {}
+        for error in errors:
+            error_msg = error['message']
+            # Extraire le premier mot/type d'erreur
+            error_type = error_msg.split(':')[0] if ':' in error_msg else error_msg[:50]
+            error_types[error_type] = error_types.get(error_type, 0) + 1
+        
+        warning_types = {}
+        for warning in warnings:
+            warning_msg = warning['message']
+            warning_type = warning_msg.split(':')[0] if ':' in warning_msg else warning_msg[:50]
+            warning_types[warning_type] = warning_types.get(warning_type, 0) + 1
+        
+        return {
+            'total_errors': len(errors),
+            'total_warnings': len(warnings),
+            'error_types': error_types,
+            'warning_types': warning_types,
+            'recent_errors': errors[:10],  # 10 plus récentes
+            'recent_warnings': warnings[:10]
+        }
 
 def setup_logging(log_dir: Optional[str] = None) -> LogManager:
     """Configure le système de logging global pour Amadeus."""

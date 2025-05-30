@@ -131,34 +131,36 @@ class OpenAIProvider(Provider):
     
     def list_fine_tunable_models(self, credentials: Dict[str, str]) -> List[Dict[str, Any]]:
         """
-        Liste les modèles qui peuvent être fine-tunés sur OpenAI.
+        Liste les modèles fine-tunables sur OpenAI.
         
         Args:
             credentials: Dictionnaire contenant la clé API OpenAI
             
         Returns:
             Liste des modèles fine-tunables avec leurs métadonnées
+            
+        Raises:
+            ProviderConnectionError: Si la connexion échoue
         """
         try:
-            # OpenAI n'a pas d'API spécifique pour lister les modèles fine-tunables,
-            # nous retournons donc une liste prédéfinie
-            return [
-                {
-                    "id": "gpt-3.5-turbo",
-                    "name": "GPT-3.5 Turbo",
-                    "description": "Modèle conversationnel optimisé pour le chat"
-                },
-                {
-                    "id": "babbage-002",
-                    "name": "Babbage",
-                    "description": "Modèle capable pour de nombreuses tâches"
-                },
-                {
-                    "id": "davinci-002",
-                    "name": "Davinci",
-                    "description": "Modèle le plus capable pour des tâches complexes"
-                }
-            ]
+            client = self.get_connection(credentials)
+            models = client.models.list()
+            
+            # Filter for fine-tunable models
+            fine_tunable_models = ["gpt-3.5-turbo", "babbage-002", "davinci-002"]
+            
+            result = []
+            for model in models.data:
+                if any(ft_model in model.id for ft_model in fine_tunable_models):
+                    result.append({
+                        "id": model.id,
+                        "name": model.id,
+                        "created": model.created,
+                        "fine_tunable": True
+                    })
+            
+            return result
+            
         except Exception as e:
             if isinstance(e, (ProviderAuthenticationError, ProviderConnectionError)):
                 raise

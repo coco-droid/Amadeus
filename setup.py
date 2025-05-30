@@ -36,6 +36,7 @@ setup(
         "typer>=0.9.0",
         "requests>=2.25.0",
         "cryptography>=3.4.0",  # Pour le chiffrement des credentials
+        "sqlalchemy>=1.4.0",  # Base de données SQLite (inclus avec Python)
     ],
     extras_require={
         "openai": ["openai>=1.0.0"],

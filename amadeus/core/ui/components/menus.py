@@ -153,11 +153,13 @@ class MenuManager:
             menu_width = min(width, 30)
             
         # Sauvegarder le menu actuel dans l'historique si existant
-        if self.current_menu:
+        if self.current_menu is not None:
             self.history.append((self.current_menu, self.current_kb))
             
+        # Créer un nouveau menu
         menu = MainMenu(title=title, options=options, width=menu_width)
         self.current_menu, self.current_kb = menu.create_menu()
+        
         return self.current_menu, self.current_kb
         
     def back_to_previous_menu(self):
@@ -167,8 +169,12 @@ class MenuManager:
             return self.current_menu, self.current_kb
         return None, None
         
+    def clear_history(self):
+        """Efface l'historique des menus."""
+        self.history = []
+        
     def back_to_main_menu(self):
         """Retourne au menu principal."""
-        self.history = []  # Effacer l'historique
+        self.clear_history()  # Effacer l'historique
         # Implémentation à compléter, pour l'instant on quitte
         get_app().exit()
