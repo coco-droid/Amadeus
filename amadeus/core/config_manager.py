@@ -60,6 +60,9 @@ def init_config():
     amadeus_home = os.path.expanduser("~/.amadeus")
     os.makedirs(amadeus_home, exist_ok=True)
     
+    # Vérifier le presse-papier et donner des conseils si nécessaire
+    _check_and_advise_clipboard()
+    
     # Other initialization tasks can be added here
     
     # Initialize database if using DB config
@@ -74,6 +77,28 @@ def init_config():
                 logger.error(f"Failed to initialize database: {e}")
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
+
+def _check_and_advise_clipboard():
+    """Vérifie le presse-papier et donne des conseils d'installation si nécessaire."""
+    try:
+        import pyperclip
+        # Test simple
+        pyperclip.copy("test")
+        result = pyperclip.paste()
+        if result == "test":
+            logger.debug("Presse-papier pyperclip fonctionnel")
+        else:
+            logger.warning("Presse-papier pyperclip détecté mais test échoué")
+            if os.name == 'posix':  # Linux/Unix
+                logger.info("Sur Linux, installez: sudo apt-get install xclip (ou xsel)")
+    except ImportError:
+        logger.info("Presse-papier non disponible. Pour l'activer: pip install pyperclip==1.9.0")
+        if os.name == 'posix':  # Linux/Unix
+            logger.info("Sur Linux, installez aussi: sudo apt-get install xclip")
+    except Exception as e:
+        logger.warning(f"Problème avec le presse-papier: {e}")
+        if os.name == 'posix':  # Linux/Unix
+            logger.info("Sur Linux, essayez: sudo apt-get install xclip xsel")
 
 def check_migration_needed() -> bool:
     """

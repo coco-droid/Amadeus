@@ -95,11 +95,6 @@ Amadeus propose une interface CLI moderne avec :
 - `ENTER` - Soumettre le formulaire
 - `ESC` - Annuler et revenir
 
-**Presse-papier (si pyperclip disponible) :**
-- `Ctrl+V` - Coller et remplacer le contenu du champ
-- `Ctrl+Shift+V` - Ajouter le contenu du presse-papier à la position du curseur
-- `Ctrl+C` - Copier le contenu du champ (sauf champs secrets)
-
 **Interface et affichage :**
 - Interface claire avec highlighting visuel de l'option sélectionnée
 - Les logs sont silencieux pendant l'utilisation de l'UI
@@ -123,38 +118,11 @@ Les contributions sont les bienvenues! Consultez notre guide de contribution pou
 
 Ce projet est sous licence [MIT](LICENSE).
 
-# 🎻 AMADEUS
+## Dépendances
 
-**Presse-papier (si pyperclip disponible) :**
-
-## Fonctionnalités Presse-papier
-
-Amadeus inclut un support intégré du presse-papier via `pyperclip 1.9.0` qui est **cross-platform** et fonctionne sur :
-
-- ✅ **Windows** : Aucune dépendance supplémentaire
-- ✅ **macOS** : Utilise `pbcopy` et `pbpaste` (inclus avec macOS) 
-- ✅ **Linux** : Support automatique avec alternatives
-
-### Installation Linux
-
-Si vous rencontrez des problèmes de presse-papier sur Linux, installez une de ces alternatives :
-
-```bash
-# Option 1 (recommandée) : xclip
-sudo apt-get install xclip
-
-# Option 2 : xsel 
-sudo apt-get install xsel
-
-# Option 3 : Support Qt (si vous avez PyQt5/PySide2)
-# Aucune installation supplémentaire nécessaire
-```
-
-Le système détecte automatiquement l'outil disponible et utilise la meilleure option.
-
-### Raccourcis clavier disponibles dans les formulaires :
-
-- `Ctrl+V` : Coller depuis le presse-papier
-- `Ctrl+Shift+V` : Ajouter le contenu du presse-papier 
-- `Ctrl+C` : Copier vers le presse-papier (champs non-secrets)
-- Bouton 📋 **Coller** : Alternative visuelle au raccourci
+pyperclip==1.9.0
+prompt-toolkit>=3.0.0
+sqlalchemy>=2.0.0
+cryptography>=3.0.0
+click>=8.0.0
+rich>=12.0.0

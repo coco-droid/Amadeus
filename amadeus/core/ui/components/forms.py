@@ -11,6 +11,45 @@ from prompt_toolkit.filters import Condition
 from prompt_toolkit.validation import Validator
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.layout.margins import ScrollbarMargin
+from prompt_toolkit.application.current import get_app
+
+# Optional clipboard support with improved fallback
+try:
+    import pyperclip
+    CLIPBOARD_AVAILABLE = True
+    CLIPBOARD_ERROR = None
+except ImportError as e:
+    CLIPBOARD_AVAILABLE = False
+    CLIPBOARD_ERROR = str(e)
+
+def get_clipboard_status():
+    """Retourne le statut détaillé du presse-papier."""
+    if not CLIPBOARD_AVAILABLE:
+        return {
+            "available": False,
+            "error": CLIPBOARD_ERROR,
+            "suggestion": "Installez pyperclip: pip install pyperclip==1.9.0"
+        }
+    
+    # Tester la fonctionnalité
+    try:
+        # Test simple pour vérifier que pyperclip fonctionne
+        test_content = "amadeus_clipboard_test"
+        pyperclip.copy(test_content)
+        result = pyperclip.paste()
+        
+        return {
+            "available": True,
+            "working": result == test_content,
+            "method": getattr(pyperclip, '_functions', {}).get('copy', 'unknown')
+        }
+    except Exception as e:
+        return {
+            "available": True,
+            "working": False,
+            "error": str(e),
+            "linux_help": "Sur Linux, installez: sudo apt-get install xclip ou xsel"
+        }
 
 class Field:
     """Représente un champ dans un formulaire."""
@@ -36,7 +75,7 @@ class Field:
             f"<info>{self.label}</info>{required_indicator}{modified_indicator}: "
         ))
         
-        # Créer un TextArea pour ce champ
+        # Créer un TextArea pour ce champ avec support du presse-papier
         text_area = TextArea(
             text=self.default,
             password=self.secret,
@@ -48,18 +87,87 @@ class Field:
             wrap_lines=False
         )
         
+        # Fonction pour coller depuis le presse-papier
+        def paste_from_clipboard():
+            """Colle le contenu du presse-papier dans le champ."""
+            if CLIPBOARD_AVAILABLE:
+                try:
+                    clipboard_content = pyperclip.paste()
+                    if clipboard_content:
+                        text_area.text = clipboard_content
+                        # Rafraîchir l'affichage
+                        get_app().invalidate()
+                except Exception:
+                    # Si erreur, ignorer silencieusement
+                    pass
+        
+        # Créer le bouton Coller seulement si pyperclip est disponible
+        paste_button = None
+        if CLIPBOARD_AVAILABLE:
+            paste_button = Button(
+                "📋 Coller",
+                handler=paste_from_clipboard,
+                width=10
+            )
+        
+        # Ajouter les raccourcis clavier améliorés
+        kb = KeyBindings()
+        
+        if CLIPBOARD_AVAILABLE:
+            @kb.add('c-v')
+            def paste_from_clipboard_kb(event):
+                """Coller depuis le presse-papier avec Ctrl+V"""
+                try:
+                    clipboard_content = pyperclip.paste()
+                    if clipboard_content:
+                        # Remplacer le contenu actuel par le contenu du presse-papier
+                        event.current_buffer.text = clipboard_content
+                        # Placer le curseur à la fin
+                        event.current_buffer.cursor_position = len(clipboard_content)
+                except Exception:
+                    # Si pyperclip n'est pas disponible, ignorer silencieusement
+                    pass
+            
+            @kb.add('c-c')
+            def copy_to_clipboard(event):
+                """Copier le contenu actuel vers le presse-papier avec Ctrl+C"""
+                try:
+                    if not self.secret:  # Ne pas copier les champs secrets
+                        content = event.current_buffer.text
+                        if content:
+                            pyperclip.copy(content)
+                except Exception:
+                    # Si pyperclip n'est pas disponible, ignorer silencieusement
+                    pass
+        
+        # Attacher les raccourcis clavier au TextArea
+        text_area.control.key_bindings = kb
+        
         # Stocker le TextArea pour récupérer la valeur plus tard
         self.text_area = text_area
+        
+        # Créer le conteneur avec le champ et le bouton
+        if paste_button:
+            # Organiser le champ et le bouton côte à côte
+            field_container = VSplit([
+                field_label,
+                text_area,
+                Window(width=1),  # Petit espacement
+                paste_button
+            ])
+        else:
+            # Pas de bouton si pyperclip n'est pas disponible
+            field_container = VSplit([
+                field_label,
+                text_area
+            ])
         
         # Décrire le champ si une description est fournie
         if self.description:
             description_label = Label(HTML(f"<secondary>{self.description}</secondary>"))
-            return VSplit([
-                field_label,
-                text_area
-            ]), description_label
+            return field_container, description_label
         
-        return VSplit([field_label, text_area]), None
+        return field_container, None
     
     @property
     def current_value(self):
@@ -105,10 +213,34 @@ class Form:
         """Crée un conteneur de formulaire."""
         form_items = []
         
-        # Ajouter des instructions en haut du formulaire
+        # Ajouter des instructions en haut du formulaire avec info améliorée sur le presse-papier
+        clipboard_status = get_clipboard_status()
+        
+        if clipboard_status["available"] and clipboard_status.get("working", True):
+            form_items.append(Label(HTML(
+                "<info>📋 Presse-papier opérationnel • Ctrl+V: Coller • Ctrl+C: Copier</info>"
+            )))
+        elif clipboard_status["available"] and not clipboard_status.get("working", True):
+            linux_help = clipboard_status.get("linux_help", "")
+            form_items.append(Label(HTML(
+                f"<warning>⚠️ Presse-papier détecté mais non fonctionnel</warning>"
+            )))
+            if linux_help:
+                form_items.append(Label(HTML(
+                    f"<info>💡 {linux_help}</info>"
+                )))
+        else:
+            suggestion = clipboard_status.get("suggestion", "")
+            form_items.append(Label(HTML(
+                f"<warning>⚠️ Presse-papier non disponible</warning>"
+            )))
+            if suggestion:
+                form_items.append(Label(HTML(
+                    f"<info>💡 {suggestion}</info>"
+                )))
+        
         form_items.append(Label(HTML(
-            "<info>Utilisez Tab/Shift+Tab pour naviguer, "
-            "Entrée pour soumettre, Echap pour annuler</info>"
+            "<info>Tab/Shift+Tab pour naviguer, Entrée pour soumettre, Échap pour annuler</info>"
         )))
         form_items.append(Window(height=1))  # Espaceur
         

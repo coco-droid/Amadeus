@@ -27,6 +27,27 @@ class ProviderRegistry:
         
         # Synchroniser avec la base de données
         self._sync_with_database()
+        
+        # Vérifier le statut du presse-papier au démarrage
+        self._check_clipboard_status()
+    
+    def _check_clipboard_status(self):
+        """Vérifie et log le statut du presse-papier."""
+        try:
+            from ..core.ui.components.forms import get_clipboard_status
+            status = get_clipboard_status()
+            
+            if status["available"] and status.get("working", True):
+                logger.debug("Presse-papier opérationnel")
+            elif status["available"]:
+                logger.warning(f"Presse-papier détecté mais non fonctionnel: {status.get('error', 'Raison inconnue')}")
+                if "linux_help" in status:
+                    logger.info(f"Aide Linux: {status['linux_help']}")
+            else:
+                logger.info(f"Presse-papier non disponible: {status.get('suggestion', 'pyperclip manquant')}")
+                
+        except Exception as e:
+            logger.debug(f"Erreur lors de la vérification du presse-papier: {e}")
     
     def _discover_all_providers(self):
         """Découvre tous les providers disponibles de manière récursive."""
